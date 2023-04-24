@@ -11,7 +11,7 @@ pub enum PieceTypes {
     King,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Move {
     pub from: u8,
     pub to: u8,
@@ -252,11 +252,7 @@ impl Board {
         }
 
         if self.board[m.from as usize].piece_type == PieceTypes::Pawn {
-            if self.wtomove && m.from - m.to == 16 {
-                self.enpassant_square = m.from - 8;
-            } else if !self.wtomove && m.to - m.from == 16 {
-                self.enpassant_square = m.to - 8;
-            }
+            
 
             if m.to == self.enpassant_square {
                 if self.wtomove {
@@ -270,6 +266,14 @@ impl Board {
                         white: false,
                     };
                 }
+            }
+            
+            if self.wtomove && m.from - m.to == 16 {
+                self.enpassant_square = m.from - 8;
+            } else if !self.wtomove && m.to - m.from == 16 {
+                self.enpassant_square = m.to - 8;
+            } else {
+                self.enpassant_square = 64;
             }
         } else {
             self.enpassant_square = 64;
@@ -302,23 +306,23 @@ impl Board {
             && m.from == 4
             && !self.board[m.from as usize].white
         {
-            if m.to == 7 {
+            if m.to == 6 {
                 self.board[7] = Piece {
                     piece_type: PieceTypes::Empty,
-                    white: true,
+                    white: false,
                 };
                 self.board[5] = Piece {
                     piece_type: PieceTypes::Rook,
-                    white: true,
+                    white: false,
                 };
-            } else if m.to == 0 {
+            } else if m.to == 2 {
                 self.board[0] = Piece {
                     piece_type: PieceTypes::Empty,
-                    white: true,
+                    white: false,
                 };
                 self.board[3] = Piece {
                     piece_type: PieceTypes::Rook,
-                    white: true,
+                    white: false,
                 };
             }
         }

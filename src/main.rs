@@ -9,7 +9,8 @@ fn main() {
 
     loop {
         board.draw();
-        println!("{:?}", movegen::generate_legal_moves(&board));
+        let legal_moves: Vec<Move> = movegen::generate_legal_moves(&board);
+        println!("{:?}", legal_moves.len());
         match io::stdin().read_line(&mut buffer) {
             Ok(n) => {
                 print!("{} bytes read: {}", n, buffer);
@@ -33,6 +34,7 @@ fn main() {
             to: parse_square(m.1.split_at(2).0),
             promotion: promotion,
         };
+        println!("{}", legal_moves.contains(&move_to_make));
         board.push(&move_to_make);
 
         buffer.clear();
