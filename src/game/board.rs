@@ -1,4 +1,18 @@
+use std::fmt::Display;
+
+use super::movegen::{MoveData, compute_distances};
+
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+pub const SQUARES: [&str; 64] = [
+    "a8","b8","c8","d8","e8","f8","g8","h8",
+    "a7","b7","c7","d7","e7","f7","g7","h7",
+    "a6","b6","c6","d6","e6","f6","g6","h6",
+    "a5","b5","c5","d5","e5","f5","g5","h5",
+    "a4","b4","c4","d4","e4","f4","g4","h4",
+    "a3","b3","c3","d3","e3","f3","g3","h3",
+    "a2","b2","c2","d2","e2","f2","g2","h2",
+    "a1","b1","c1","d1","e1","f1","g1","h1",
+    ];
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum PieceTypes {
@@ -18,6 +32,7 @@ pub struct Move {
     pub promotion: PieceTypes,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct Board {
     pub board: [Piece; 64],
 
@@ -29,35 +44,54 @@ pub struct Board {
     pub black_qs: bool,
     pub enpassant_square: u8,
     pub fullmoves: u16,
+    pub bkingpos: u8,
+    pub wkingpos: u8,
+
+    pub precomputed_move_data: [MoveData; 64],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Piece {
     pub piece_type: PieceTypes,
     pub white: bool,
 }
 
-impl Board {
-    pub fn draw(&self) {
+impl Move {
+    pub fn uci(&self) -> String {
+        format!("{}{}{}", SQUARES[self.from as usize], SQUARES[self.to as usize], match self.promotion {
+            PieceTypes::Bishop => "b",
+            PieceTypes::Knight => "n",
+            PieceTypes::Rook => "r",
+            PieceTypes::Queen => "q",
+            _ => ""
+        })
+    }
+}
+
+impl Display for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut i: u8 = 0;
         for piece in self.board {
             match piece.piece_type {
-                PieceTypes::Empty => print!("-"),
-                PieceTypes::Pawn => print!("{}", if piece.white { "P" } else { "p" }),
-                PieceTypes::Bishop => print!("{}", if piece.white { "B" } else { "b" }),
-                PieceTypes::Knight => print!("{}", if piece.white { "N" } else { "n" }),
-                PieceTypes::Rook => print!("{}", if piece.white { "R" } else { "r" }),
-                PieceTypes::Queen => print!("{}", if piece.white { "Q" } else { "q" }),
-                PieceTypes::King => print!("{}", if piece.white { "K" } else { "k" }),
-            }
+                PieceTypes::Empty => write!(f, "-"),
+                PieceTypes::Pawn => write!(f, "{}", if piece.white { "P" } else { "p" }),
+                PieceTypes::Bishop => write!(f, "{}", if piece.white { "B" } else { "b" }),
+                PieceTypes::Knight => write!(f, "{}", if piece.white { "N" } else { "n" }),
+                PieceTypes::Rook => write!(f, "{}", if piece.white { "R" } else { "r" }),
+                PieceTypes::Queen => write!(f, "{}", if piece.white { "Q" } else { "q" }),
+                PieceTypes::King => write!(f, "{}", if piece.white { "K" } else { "k" }),
+            }?;
 
             if i % 8 == 7 {
                 println!();
             }
             i += 1;
         }
+        Ok(())
     }
+}
 
+impl Board {
     pub fn new(fen: &str) -> Self {
         let fen_array = fen.split(" ");
         let mut tokens: [&str; 6] = [""; 6];
@@ -82,6 +116,9 @@ impl Board {
         let wtomove: bool = tokens[1] == "w";
 
         let mut curr_square: usize = 0;
+
+        let mut bkingpos: u8 = 64;
+        let mut wkingpos: u8 = 64;
 
         for row in board_array {
             for square in row.chars() {
@@ -128,6 +165,7 @@ impl Board {
                             white: false,
                         };
                     } else if square == 'k' {
+                        bkingpos = curr_square as u8;
                         board[curr_square] = Piece {
                             piece_type: PieceTypes::King,
                             white: false,
@@ -158,6 +196,7 @@ impl Board {
                             white: true,
                         };
                     } else if square == 'K' {
+                        wkingpos = curr_square as u8;
                         board[curr_square] = Piece {
                             piece_type: PieceTypes::King,
                             white: true,
@@ -205,11 +244,27 @@ impl Board {
             black_qs: black_qs,
             enpassant_square: enpassant_square,
             fullmoves: fullmoves,
+            precomputed_move_data: compute_distances(),
+            bkingpos: bkingpos,
+            wkingpos: wkingpos,
         }
     }
 
-    pub fn push(&mut self, m: &Move) {
-        assert_ne!(self.board[m.from as usize].piece_type, PieceTypes::Empty);
+    pub fn push(&mut self, m: &Move) -> impl Fn(&mut Board){
+        // assert_ne!(self.board[m.from as usize].piece_type, PieceTypes::Empty);
+
+        let uboard = self.board;
+        let uwtomove = self.wtomove;
+        let uwhite_ks = self.white_ks;
+        let uwhite_qs = self.white_qs;
+        let ublack_ks = self.black_ks;
+        let ublack_qs = self.black_qs;
+        let uenpassant_square = self.enpassant_square;
+        let ufullmoves = self.fullmoves;
+        let uprecomputed_move_data = self.precomputed_move_data;
+        let ubkingpos = self.bkingpos;
+        let uwkingpos = self.wkingpos;
+
         let temp: Piece;
         if m.promotion == PieceTypes::Empty {
             temp = self.board[m.from as usize];
@@ -279,6 +334,14 @@ impl Board {
             self.enpassant_square = 64;
         }
 
+        if self.board[m.from as usize].piece_type == PieceTypes::King {
+            if self.board[m.from as usize].white {
+                self.wkingpos = m.to as u8;
+            } else {
+                self.bkingpos = m.to as u8;
+            }
+        }
+
         if self.board[m.from as usize].piece_type == PieceTypes::King
             && m.from == 60
             && self.board[m.from as usize].white
@@ -339,6 +402,19 @@ impl Board {
 
         self.wtomove = !self.wtomove;
 
+        move |board: &mut Board| {
+            board.board = uboard;
+            board.wtomove = uwtomove;
+            board.white_ks = uwhite_ks;
+            board.white_qs = uwhite_qs;
+            board.black_ks = ublack_ks;
+            board.black_qs = ublack_qs;
+            board.enpassant_square = uenpassant_square;
+            board.fullmoves = ufullmoves;
+            board.precomputed_move_data = uprecomputed_move_data;
+            board.bkingpos = ubkingpos;
+            board.wkingpos = uwkingpos;
+        }
     }
 }
 
