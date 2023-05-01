@@ -57,6 +57,31 @@ pub struct Piece {
 }
 
 impl Move {
+    pub fn parse_from(m: &str) -> Move {
+        let mv = m.split_at(2);
+        let from = mv.0;
+        let mut to = "";
+        let mut promotion = "";
+        if m.len() == 4 {
+            to = mv.1;
+        } else if m.len() == 5 {
+            let mv2 = mv.1.split_at(2);
+            to = mv2.0;
+            promotion = mv2.1;
+        }
+        Move {
+            from: parse_square(from),
+            to: parse_square(to),
+            promotion: match promotion {
+                "n" => PieceTypes::Knight,
+                "b" => PieceTypes::Bishop,
+                "r" => PieceTypes::Rook,
+                "q" => PieceTypes::Queen,
+                _ => PieceTypes::Empty
+            },
+        }
+    }
+
     pub fn uci(&self) -> String {
         format!("{}{}{}", SQUARES[self.from as usize], SQUARES[self.to as usize], match self.promotion {
             PieceTypes::Bishop => "b",
