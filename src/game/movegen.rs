@@ -121,6 +121,37 @@ pub fn generate_legal_moves(board: &mut Board) -> Vec<Move> {
     legal_moves
 }
 
+pub fn generate_legal_captures(board: &mut Board) -> Vec<Move> {
+    let pseudo_moves = generate_pseudolegal_moves(board);
+    let mut legal_moves: Vec<Move> = Vec::new();
+
+    for m in pseudo_moves {
+        // println!("{}", m.uci());
+        let move_to = board.board[m.to as usize].piece_type;
+        let undo = board.push(&m);
+        if move_to != PieceTypes::Empty {
+            if board.wtomove {
+                board.wtomove = !board.wtomove;
+                if !is_check(board, board.bkingpos, false) {
+                    legal_moves.push(m);
+                }
+                board.wtomove = !board.wtomove;
+            } else {
+                board.wtomove = !board.wtomove;
+                if !is_check(board, board.wkingpos, true) {
+                    legal_moves.push(m);
+                }
+                board.wtomove = !board.wtomove;
+            }
+        }
+
+        board.wtomove = !board.wtomove;
+        undo(board);
+    }
+
+    legal_moves
+}
+
 fn pawn_moves(moves: &mut Vec<Move>, board: &Board, piece: &Piece, curr_square: u8) {
     if piece.white
         && board.wtomove

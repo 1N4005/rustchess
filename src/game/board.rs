@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use crate::engine::hash::{init_table, generate_hash, WPAWN, BPAWN, BBISHOP, WBISHOP, WKNIGHT, BKNIGHT, WROOK, BROOK, WQUEEN, BQUEEN, WKING, BKING};
+
 use super::movegen::{MoveData, compute_distances};
 
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -16,13 +18,13 @@ pub const SQUARES: [&str; 64] = [
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum PieceTypes {
-    Empty,
-    Pawn,
-    Bishop,
-    Knight,
-    Rook,
-    Queen,
-    King,
+    Empty = 0,
+    Pawn = 1,
+    Bishop = 2,
+    Knight = 3,
+    Rook = 4,
+    Queen = 5,
+    King = 6,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -48,6 +50,8 @@ pub struct Board {
     pub wkingpos: u8,
 
     pub precomputed_move_data: [MoveData; 64],
+    pub zobrist_table: [[u64; 12]; 64],
+    pub hash: u64
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -260,7 +264,7 @@ impl Board {
 
         let fullmoves = tokens[5].parse().unwrap();
 
-        Board {
+        let mut ret_board = Board {
             board: board,
             wtomove: wtomove,
             white_ks: white_ks,
@@ -272,7 +276,11 @@ impl Board {
             precomputed_move_data: compute_distances(),
             bkingpos: bkingpos,
             wkingpos: wkingpos,
-        }
+            zobrist_table: init_table(),
+            hash: 0u64
+        };
+        ret_board.hash = generate_hash(&ret_board);
+        ret_board
     }
 
     pub fn push(&mut self, m: &Move) -> impl Fn(&mut Board){
@@ -289,11 +297,101 @@ impl Board {
         let uprecomputed_move_data = self.precomputed_move_data;
         let ubkingpos = self.bkingpos;
         let uwkingpos = self.wkingpos;
+        let uhash = self.hash;
 
         let temp: Piece;
+        match self.board[m.from as usize].piece_type {
+            PieceTypes::Empty => (),
+            PieceTypes::Pawn => if self.board[m.from as usize].white {
+                self.hash ^= self.zobrist_table[m.from as usize][WPAWN];
+            } else {
+                self.hash ^= self.zobrist_table[m.from as usize][BPAWN];
+            },
+            PieceTypes::Bishop => if self.board[m.from as usize].white {
+                self.hash ^= self.zobrist_table[m.from as usize][WBISHOP];
+            } else {
+                self.hash ^= self.zobrist_table[m.from as usize][BBISHOP];
+            },
+            PieceTypes::Knight => if self.board[m.from as usize].white {
+                self.hash ^= self.zobrist_table[m.from as usize][WKNIGHT];
+            } else {
+                self.hash ^= self.zobrist_table[m.from as usize][BKNIGHT];
+            },
+            PieceTypes::Rook => if self.board[m.from as usize].white {
+                self.hash ^= self.zobrist_table[m.from as usize][WROOK];
+            } else {
+                self.hash ^= self.zobrist_table[m.from as usize][BROOK];
+            },
+            PieceTypes::Queen => if self.board[m.from as usize].white {
+                self.hash ^= self.zobrist_table[m.from as usize][WQUEEN];
+            } else {
+                self.hash ^= self.zobrist_table[m.from as usize][BQUEEN];
+            },
+            PieceTypes::King => if self.board[m.from as usize].white {
+                self.hash ^= self.zobrist_table[m.from as usize][WKING];
+            } else {
+                self.hash ^= self.zobrist_table[m.to as usize][BKING];
+            },
+        }
         if m.promotion == PieceTypes::Empty {
+            match self.board[m.from as usize].piece_type {
+                PieceTypes::Empty => (),
+                PieceTypes::Pawn => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WPAWN];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BPAWN];
+                },
+                PieceTypes::Bishop => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WBISHOP];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BBISHOP];
+                },
+                PieceTypes::Knight => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WKNIGHT];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BKNIGHT];
+                },
+                PieceTypes::Rook => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WROOK];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BROOK];
+                },
+                PieceTypes::Queen => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WQUEEN];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BQUEEN];
+                },
+                PieceTypes::King => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WKING];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BKING];
+                },
+            }
             temp = self.board[m.from as usize];
         } else {
+            match m.promotion {
+                PieceTypes::Bishop => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WBISHOP];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BBISHOP];
+                },
+                PieceTypes::Knight => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WKNIGHT];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BKNIGHT];
+                },
+                PieceTypes::Rook => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WROOK];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BROOK];
+                },
+                PieceTypes::Queen => if self.board[m.from as usize].white {
+                    self.hash ^= self.zobrist_table[m.to as usize][WQUEEN];
+                } else {
+                    self.hash ^= self.zobrist_table[m.to as usize][BQUEEN];
+                },
+                _ => (),
+            }
             temp = Piece {
                 piece_type: m.promotion,
                 white: self.board[m.from as usize].white,
@@ -331,20 +429,20 @@ impl Board {
             self.black_ks = false;
         }
 
-        if self.board[m.from as usize].piece_type == PieceTypes::Pawn {
-            
-
+        if self.board[m.from as usize].piece_type == PieceTypes::Pawn {   
             if m.to == self.enpassant_square {
                 if self.wtomove {
                     self.board[(m.to + 8) as usize] = Piece {
                         piece_type: PieceTypes::Empty,
                         white: false,
                     };
+                    self.hash ^= self.zobrist_table[m.to as usize + 8][BPAWN];
                 } else {
                     self.board[(m.to - 8) as usize] = Piece {
                         piece_type: PieceTypes::Empty,
                         white: false,
                     };
+                    self.hash ^= self.zobrist_table[m.to as usize + 8][WPAWN];
                 }
             }
             
@@ -380,6 +478,8 @@ impl Board {
                     piece_type: PieceTypes::Rook,
                     white: true,
                 };
+                self.hash ^= self.zobrist_table[63][WROOK];
+                self.hash ^= self.zobrist_table[61][WROOK];
             } else if m.to == 58 {
                 self.board[56] = Piece {
                     piece_type: PieceTypes::Empty,
@@ -389,6 +489,8 @@ impl Board {
                     piece_type: PieceTypes::Rook,
                     white: true,
                 };
+                self.hash ^= self.zobrist_table[56][WROOK];
+                self.hash ^= self.zobrist_table[59][WROOK];
             }
         } else if self.board[m.from as usize].piece_type == PieceTypes::King
             && m.from == 4
@@ -403,6 +505,8 @@ impl Board {
                     piece_type: PieceTypes::Rook,
                     white: false,
                 };
+                self.hash ^= self.zobrist_table[7][BROOK];
+                self.hash ^= self.zobrist_table[5][BROOK];
             } else if m.to == 2 {
                 self.board[0] = Piece {
                     piece_type: PieceTypes::Empty,
@@ -412,6 +516,8 @@ impl Board {
                     piece_type: PieceTypes::Rook,
                     white: false,
                 };
+                self.hash ^= self.zobrist_table[0][BROOK];
+                self.hash ^= self.zobrist_table[3][BROOK];
             }
         }
 
@@ -439,6 +545,7 @@ impl Board {
             board.precomputed_move_data = uprecomputed_move_data;
             board.bkingpos = ubkingpos;
             board.wkingpos = uwkingpos;
+            board.hash = uhash;
         }
     }
 }

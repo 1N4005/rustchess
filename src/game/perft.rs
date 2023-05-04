@@ -19,9 +19,9 @@ pub fn go(depth: u8, board: &mut Board, depth_from_root: u8) -> u64 {
         count += numpositions;
         undo(board);
 
-        // if depth_from_root == 0 {
-        //     println!("{}: {}", m.uci() ,numpositions)
-        // }
+        if depth_from_root == 0 {
+            println!("{}: {}", m.uci() ,numpositions)
+        }
     }
 
     count
