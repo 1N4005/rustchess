@@ -1079,11 +1079,17 @@ pub fn is_check(board: &Board, curr_square: u8, white: bool) -> bool {
     let mut dmoves: Vec<Move> = Vec::new();
     let mut hmoves: Vec<Move> = Vec::new();
     let mut pcaptures: Vec<Move> = Vec::new();
+    let mut kmoves: Vec<Move> = Vec::new();
 
     sliding_piece_moves(&mut dmoves, board, &piece, curr_square, 0b11110000);
     sliding_piece_moves(&mut hmoves, board, &piece, curr_square, 0b00001111);
-    pawn_captures(&mut pcaptures, board, &piece, curr_square);
+    if white && curr_square / 8 > 0{
+        pawn_captures(&mut pcaptures, board, &piece, curr_square);
+    } else if !white && curr_square / 8 < 7{
+        pawn_captures(&mut pcaptures, board, &piece, curr_square);
+    }
     knight_moves(&mut moves, board, &piece, curr_square);
+    king_moves(&mut kmoves, board, &piece, curr_square);
 
     for m in moves {
         let piece = board.board[m.to as usize];
@@ -1116,6 +1122,13 @@ pub fn is_check(board: &Board, curr_square: u8, white: bool) -> bool {
             && piece.white != white
             && m.to != board.enpassant_square
         {
+            return true;
+        }
+    }
+
+    for m in kmoves {
+        let piece = board.board[m.to as usize];
+        if piece.piece_type == PieceTypes::King {
             return true;
         }
     }

@@ -22,8 +22,10 @@ pub fn init_table() -> [[u64; 12]; 64] {
             table[i][j] = random();
         }
     }
+
     table
 }
+
 
 pub fn generate_hash(board: &Board) -> u64 {
     let mut hash = 0u64;
@@ -64,5 +66,6 @@ pub fn generate_hash(board: &Board) -> u64 {
         }
         curr_square += 1;
     }
+
     hash
 }

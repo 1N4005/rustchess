@@ -3,7 +3,9 @@ use engine::search::{absearch, EvalResult};
 use std::io;
 use std::time::Instant;
 
+use crate::engine::hash::generate_hash;
 use crate::engine::search::{self, REALLY_BIG_NUMBER, REALLY_SMALL_NUMBER};
+use crate::game::movegen::generate_legal_moves;
 use crate::game::perft;
 use crate::uci::uci;
 
@@ -27,14 +29,16 @@ fn main() -> Result<(), ()>{
 }
 
 fn cli() -> Result<(), ()> {
-    let mut board = Board::new(STARTPOS);
+    let mut board = Board::new("8/4k3/8/3K4/4P3/8/8/8 w - - 0 1");
     // println!("{:?}", board.zobrist_table);
     let mut undo = board.push(&Move::parse_from("e2e4"));
     undo(&mut board);
 
     loop {
+        board.hash = generate_hash(&board);
         let mut input = String::new();
         let mut computer_move = false;
+        println!("{:?}", generate_legal_moves(&mut board));
 
         io::stdin().read_line(&mut input).expect("Failed to read line");
 
@@ -61,7 +65,7 @@ fn cli() -> Result<(), ()> {
 
             let start = Instant::now();
             // search(4, &mut board, &mut eval_result, 0);
-            absearch(4, &mut board, search::REALLY_SMALL_NUMBER, search::REALLY_BIG_NUMBER, &mut eval_result, 0);
+            println!("{}", absearch(16, &mut board, search::REALLY_SMALL_NUMBER * 10.0, search::REALLY_BIG_NUMBER * 10.0, &mut eval_result, 0, &mut Vec::new()));
             let elapsed = start.elapsed();
             undo = board.push(&eval_result.best_move);
 

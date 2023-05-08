@@ -1,4 +1,5 @@
-use std::fmt::Display;
+use std::{fmt::{Display, Debug}, collections::HashMap};
+use rand::prelude::random;
 
 use crate::engine::hash::{init_table, generate_hash, WPAWN, BPAWN, BBISHOP, WBISHOP, WKNIGHT, BKNIGHT, WROOK, BROOK, WQUEEN, BQUEEN, WKING, BKING};
 
@@ -27,7 +28,7 @@ pub enum PieceTypes {
     King = 6,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Move {
     pub from: u8,
     pub to: u8,
@@ -35,6 +36,12 @@ pub struct Move {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct TranspositionEntry {
+    pub depth: u8,
+    pub eval: f32,
+}
+
+#[derive(Clone, Debug)]
 pub struct Board {
     pub board: [Piece; 64],
 
@@ -51,7 +58,13 @@ pub struct Board {
 
     pub precomputed_move_data: [MoveData; 64],
     pub zobrist_table: [[u64; 12]; 64],
-    pub hash: u64
+    pub hash: u64,
+    pub transposition_table: HashMap<u64, TranspositionEntry>,
+    pub white_ks_random: u64,
+    pub white_qs_random: u64,
+    pub black_ks_random: u64,
+    pub black_qs_random: u64,
+    pub wtomove_random: u64,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -94,6 +107,21 @@ impl Move {
             PieceTypes::Queen => "q",
             _ => ""
         })
+    }
+}
+
+impl Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match write!(f, "{}{}{}", SQUARES[self.from as usize], SQUARES[self.to as usize], match self.promotion {
+            PieceTypes::Bishop => "b",
+            PieceTypes::Knight => "n",
+            PieceTypes::Rook => "r",
+            PieceTypes::Queen => "q",
+            _ => ""
+        }) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(std::fmt::Error),
+        }
     }
 }
 
@@ -277,7 +305,13 @@ impl Board {
             bkingpos: bkingpos,
             wkingpos: wkingpos,
             zobrist_table: init_table(),
-            hash: 0u64
+            hash: 0u64,
+            transposition_table: HashMap::new(),
+            white_ks_random: random(),
+            white_qs_random: random(),
+            black_ks_random: random(),
+            black_qs_random: random(),
+            wtomove_random: random(),
         };
         ret_board.hash = generate_hash(&ret_board);
         ret_board
@@ -402,31 +436,43 @@ impl Board {
             if self.wtomove {
                 self.white_ks = false;
                 self.white_qs = false;
+                self.hash ^= self.white_ks_random;
+                self.hash ^= self.white_qs_random;
             } else {
                 self.black_ks = false;
                 self.black_qs = false;
+                self.hash ^= self.black_ks_random;
+                self.hash ^= self.black_qs_random;
             }
         }
 
 
         if m.to == 63 {
             self.white_ks = false;
+            self.hash ^= self.white_ks_random;
         } else if m.to == 56 {
             self.white_qs = false;
+            self.hash ^= self.white_qs_random;
         } else if m.to == 0 {
             self.black_qs = false;
+            self.hash ^= self.black_qs_random;
         } else if m.to == 7 {
             self.black_ks = false;
+            self.hash ^= self.black_ks_random;
         }
 
         if m.from == 63 {
             self.white_ks = false;
+            self.hash ^= self.white_ks_random;
         } else if m.from == 56 {
             self.white_qs = false;
+            self.hash ^= self.white_qs_random;
         } else if m.from == 0 {
             self.black_qs = false;
+            self.hash ^= self.black_qs_random;
         } else if m.from == 7 {
             self.black_ks = false;
+            self.hash ^= self.black_ks_random;
         }
 
         if self.board[m.from as usize].piece_type == PieceTypes::Pawn {   
@@ -532,6 +578,7 @@ impl Board {
         }
 
         self.wtomove = !self.wtomove;
+        self.hash ^= self.wtomove_random;
 
         move |board: &mut Board| {
             board.board = uboard;
